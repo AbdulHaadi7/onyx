@@ -11,10 +11,13 @@ from onyx.configs.app_configs import INDEX_BATCH_SIZE, REQUEST_TIMEOUT_SECONDS
 from onyx.configs.constants import DocumentSource
 from onyx.connectors.cross_connector_utils.miscellaneous_utils import time_str_to_utc
 from onyx.connectors.cross_connector_utils.rate_limit_wrapper import rate_limit_builder
+
 from onyx.connectors.interfaces import (
     GenerateDocumentsOutput,
+    GenerateSlimDocumentOutput,
     PollConnector,
     SecondsSinceUnixEpoch,
+    SlimConnector,
 )
 from onyx.connectors.models import (
     BasicExpertInfo,
@@ -22,8 +25,10 @@ from onyx.connectors.models import (
     Document,
     HierarchyNode,
     ImageSection,
+    SlimDocument,
     TextSection,
 )
+
 from onyx.file_processing.html_utils import parse_html_page_basic
 from onyx.utils.logger import setup_logger
 from onyx.utils.retry_wrapper import retry_builder
@@ -50,7 +55,7 @@ def discourse_request(
     return response
 
 
-class DiscourseConnector(PollConnector):
+class DiscourseConnector(PollConnector, SlimConnector):
     def __init__(
         self,
         base_url: str,
@@ -231,6 +236,31 @@ class DiscourseConnector(PollConnector):
         self._get_categories_map()
 
         yield from self._yield_discourse_documents(start_datetime, end_datetime)
+
+        def retrieve_all_slim_docs(
+        self,
+        start: SecondsSinceUnixEpoch | None = None,
+        end: SecondsSinceUnixEpoch | None = None,
+        callback: Any | None = None,
+    ) -> GenerateSlimDocumentOutput:
+         """Lightweight, ID-only pass used by Onyx's pruning job to detect
+            deleted documents. Per connectors/README.md, start/end can be ignored
+            for slim connectors."""
+        if self.permissions is None:
+            raise ConnectorMissingCredentialError("Discourse")
+
+        self._get_categories_map()
+
+        page = 0
+        while topic_ids := self._get_latest_topics(None, None, page):
+            slim_batch: list[SlimDocument | HierarchyNode] = [
+                SlimDocument(
+                    id="_".join([DocumentSource.DISCOURSE.value, str(topic_id)])
+                )
+                for topic_id in topic_ids
+            ]
+            yield slim_batch
+            page += 1
 
 
 if __name__ == "__main__":
