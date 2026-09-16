@@ -237,7 +237,7 @@ class DiscourseConnector(PollConnector, SlimConnector):
 
         yield from self._yield_discourse_documents(start_datetime, end_datetime)
 
-        def retrieve_all_slim_docs(
+    def retrieve_all_slim_docs(
         self,
         start: SecondsSinceUnixEpoch | None = None,
         end: SecondsSinceUnixEpoch | None = None,
@@ -246,13 +246,13 @@ class DiscourseConnector(PollConnector, SlimConnector):
          """Lightweight, ID-only pass used by Onyx's pruning job to detect
             deleted documents. Per connectors/README.md, start/end can be ignored
             for slim connectors."""
-        if self.permissions is None:
+         if self.permissions is None:
             raise ConnectorMissingCredentialError("Discourse")
 
-        self._get_categories_map()
+         self._get_categories_map()
 
-        page = 0
-        while topic_ids := self._get_latest_topics(None, None, page):
+         page = 0
+         while topic_ids := self._get_latest_topics(None, None, page):
             slim_batch: list[SlimDocument | HierarchyNode] = [
                 SlimDocument(
                     id="_".join([DocumentSource.DISCOURSE.value, str(topic_id)])
